@@ -31,6 +31,7 @@ class Network:
     async def consumer_handler(self,ws):
         try:
             event, message = (await ws.recv()).split(",")
+            print(f'Hi! Im client!I just received this event {event} and msg {message} from server')
             if event == 'init':
                 self.player = message
                 # gui.game_initiating_window()

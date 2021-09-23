@@ -40,7 +40,7 @@ all_games=dict()
 async def producer_handler():
     global all_messages
     (message, sender) = await all_messages.get()
-    # [await w.send(message) for w in connected if w != sender]
+    [await w[0].send(message) for w in connected if w[0] != sender]
 
 
 async def consumer_handler(ws):
