@@ -7,8 +7,9 @@ from network import Network
 from queue import Queue
 
 gui = Board()
-player = 1
-game_id = 0
+player = None
+game_id = None
+status = None
 q = Queue()
 
 def send_message_from_server_to_queue(message):
@@ -17,7 +18,6 @@ def send_message_from_server_to_queue(message):
     def put_to_queue(message):
         q.put(message)
     put_to_queue(message)
-    # print ("Inside network client. received message from server",message)
 
 n = Network(send_message_from_server_to_queue)
 n.connect()
@@ -40,15 +40,47 @@ def process_click():
     #         status = 'tie'
     #     gui.display_game_status(status, game.turn)
     #     pg.display.update()
-
-
-gui.game_initiating_window()
-gui.display_game_status('move')
+def update_status(message):
+    global player, game_id, status
+    params = message.split(',')
+    print('Message params',params)
+    event=params[0]
+    if event == 'init':
+        print('Nothing on board, we initiating')
+        player = int(params[1])
+        game_id = int(params[2])
+        if player != 1:
+            status = 'opponent'
+        else:
+            status = 'move'
+        gui.game_initiating_window()
+    elif event == 'move':
+        row= int(params[1])
+        col= int(params[2])
+        goes_player = int(params[3])
+        sent_status = params[4]
+        gui.mark_board(row,col,goes_player)
+        status = 'move'
+        if sent_status == 'win':
+            gui.cross_winner(int(params[5]),params[6])
+            if not player == goes_player:
+                status = 'lost'
+            else:
+                status='win'
+        elif sent_status =='tie':
+            status = 'tie'
+        elif player == goes_player:
+            status = 'opponent'
+    elif event == "not ready":
+        status ='not ready'
+    gui.display_game_status(status)
 
 while True:
     pg.display.update()
     if not q.empty():
         message = q.get()
+        update_status(message)
+        pg.display.update()
         print('THIS MESSAGE IS FROM SERVER TO CLIENT', message)
     for event in pg.event.get():
         if event.type == pg.QUIT:
@@ -57,15 +89,6 @@ while True:
         elif event.type == pg.MOUSEBUTTONDOWN:
             print('You clicked on the board!')
             process_click()
-            # if game.is_over:
-            #     print('Game over with status', status, game.turn)
-            #     gui.display_game_status(status, game.turn)
-            #     pg.display.update()
-            #     time.sleep(2)
-            #     pg.time.Clock().tick(1000)
-            #     game.reset()
-            #     status = "next"
-            #     gui.game_initiating_window()
-            #     gui.display_game_status(status, game.turn)
+
 
     pg.time.Clock().tick(10)

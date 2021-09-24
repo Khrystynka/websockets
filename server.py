@@ -1,43 +1,33 @@
 import asyncio
 import websockets
-from collections import defaultdict
-import datetime
 from game import Game
-
-all_messages = None
-import pygame as pg
-import sys
-import time
-from game import Game
-from gui import Board
-
-# game = Game()
-# gui = Board()
-status = 'next'
 
 all_games = dict()
+all_messages = None
+
 
 async def producer_handler():
     global all_messages
-    message= await all_messages.get()
-    row,col, player, game_id = [int(x) for x in message.split(",")]
-    if (game_id) not in all_games:
+    message = await all_messages.get()
+    row, col, player, game_id = [int(x) for x in message.split(",")]
+    if game_id not in all_games:
         return
     game = all_games[game_id]
-    if player == game.turn and game.is_free(row,col):
-        game.make_move(row,col)
+    if not game.ready:
+        game_update_massage = "no game"
+    elif game.ready and player == game.turn and game.is_free(row, col):
+        game.make_move(row, col)
         game.update_status()
-        status ='next'
+        status = 'move'
         if game.winner:
-            status ='winner'
-
+            status = 'win'
         elif game.tie:
             status = 'tie'
-        game_update_massage =f"'move',{row},{col},{player},{status},{game.winner_idx},{game.winner_direction}"
-        recipients = [game.x_player,game.o_player]
-        print(recipients)
-
-        [await w.send(game_update_massage) for w in recipients]
+        game_update_massage = f"move,{row},{col},{player},{status},{game.winner_idx},{game.winner_direction}"
+    else:
+        game_update_massage = f"invalid move"
+    recipients = [game.x_player, game.o_player]
+    [await w.send(game_update_massage) for w in recipients]
 
 
 async def consumer_handler(ws):
@@ -45,7 +35,7 @@ async def consumer_handler(ws):
     try:
         message = await ws.recv()
         await all_messages.put(message)
-        print ('Server: All received  msgs',all_messages)
+        print('Server: All received  msgs', all_messages)
 
     except Exception as error:
         print(error)
@@ -56,24 +46,26 @@ connected = set()
 
 async def handler(websocket, path):
     global all_games
-    game_idx = len(connected)//2
+    game_idx = len(connected) // 2
     if game_idx not in all_games:
         all_games[game_idx] = Game()
     if not len(connected) % 2:
         all_games[game_idx].x_player = websocket
-        player =1
+        player = 1
+        await websocket.send(f'not ready')
     else:
         all_games[game_idx].o_player = websocket
-        all_games[game_idx].ready  = True
-        player =2
-
-    await websocket.send(f'init,{player},{game_idx}')
-    connected.add((websocket,player,game_idx))
-    print("Games connected sofar",all_games)
+        all_games[game_idx].ready = True
+        player = 2
+        await websocket.send(f'init,{player},{game_idx}')
+        await all_games[game_idx].x_player.send(f'init,1,{game_idx}')
 
 
 
-    print('connected websockets', connected)
+    connected.add((websocket, player, game_idx))
+    # print("Games connected sofar", all_games)
+    #
+    # print('connected websockets', connected)
 
     while True:
         listener_task = asyncio.ensure_future(consumer_handler(websocket))
@@ -85,7 +77,6 @@ async def handler(websocket, path):
         for task in pending:
             task.cancel()
         await asyncio.sleep(1)
-
 
 
 async def main():

@@ -25,7 +25,6 @@ class Network:
         try:
             message = (await ws.recv())
             self.callback(message)
-            print(f'Hi! Im client!I just received this message from server: ', message)
 
         except Exception as error:
             print(error)
@@ -50,16 +49,12 @@ class Network:
                     await asyncio.sleep(2)
         asyncio.run(run())
 
-        # asyncio.get_event_loop().run_forever()
     def connect(self):
 
         _thread.start_new_thread(self.handler,())
         while not self.loop:
-            time.sleep(1)
+            time.sleep(0.01)
 
     def send_task(self, message):
-        print ("Inside function ssend")
         self.loop.call_soon_threadsafe(lambda: self.tasks.put_nowait(message))
-
-        print('list of tasks', self.tasks)
 

@@ -7,8 +7,8 @@ CLOCK = pg.time.Clock()
 
 # loading the images as python object
 
-o_img = pg.image.load("letter_o.png")
-x_img = pg.image.load("letter_x.png")
+o_img = pg.image.load("black_o.png")
+x_img = pg.image.load("red-x-png.png")
 
 # resizing images
 x_img = pg.transform.scale(x_img, (80, 80))
@@ -64,7 +64,7 @@ class Board():
         if status == "win":
                 message = f"YOU WON!"
                 self.screen.fill((255, 0, 0), (0, 0, 500, 100))
-        if status == 'lost':
+        elif status == 'lost':
                 message = f"YOU LOST!"
                 self.screen.fill((120, 120, 120), (0, 0, 500, 100))
 
@@ -72,8 +72,12 @@ class Board():
             message = "Game over!"
         elif status == 'move':
                 message = f"Make your move"
-        else:
+        elif status == 'opponent':
                 message = "Wait for opponent"
+        elif status == 'start':
+            message = "Wait..."
+        elif status == 'not ready':
+            message = "No opponent yet..."
         font = pg.font.SysFont("comicsans", 40)
 
         img = font.render(message, True, (255, 255, 255))
