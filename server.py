@@ -1,5 +1,6 @@
 import asyncio
 import websockets
+from collections import defaultdict
 import datetime
 from game import Game
 
@@ -10,44 +11,40 @@ import time
 from game import Game
 from gui import Board
 
-game = Game()
+# game = Game()
 # gui = Board()
 status = 'next'
 
-all_games=dict()
-
-
-
-#
-# def process_click():
-#     global status
-#     pos = pg.mouse.get_pos()
-#     row, col = gui.detect_square(pos)
-#     if game.is_free(row, col):
-#         gui.mark_board(row, col, game.turn)
-#         game.make_move(row, col)
-#         if game.winner:
-#             gui.cross_winner(game.winner_idx, game.winner_direction)
-#             status = 'win'
-#             game.turn = game.winner
-#         elif game.tie:
-#             status = 'tie'
-#         gui.display_game_status(status, game.turn)
-#         pg.display.update()
-
-
+all_games = dict()
 
 async def producer_handler():
     global all_messages
-    (message, sender) = await all_messages.get()
-    [await w[0].send(message) for w in connected if w[0] != sender]
+    message= await all_messages.get()
+    row,col, player, game_id = [int(x) for x in message.split(",")]
+    if (game_id) not in all_games:
+        return
+    game = all_games[game_id]
+    if player == game.turn and game.is_free(row,col):
+        game.make_move(row,col)
+        game.update_status()
+        status ='next'
+        if game.winner:
+            status ='winner'
+
+        elif game.tie:
+            status = 'tie'
+        game_update_massage =f"'move',{row},{col},{player},{status},{game.winner_idx},{game.winner_direction}"
+        recipients = [game.x_player,game.o_player]
+        print(recipients)
+
+        [await w.send(game_update_massage) for w in recipients]
 
 
 async def consumer_handler(ws):
     global all_messages
     try:
         message = await ws.recv()
-        await all_messages.put((message, ws))
+        await all_messages.put(message)
         print ('Server: All received  msgs',all_messages)
 
     except Exception as error:
@@ -59,14 +56,20 @@ connected = set()
 
 async def handler(websocket, path):
     global all_games
-    game_idx = len(connected)/2
+    game_idx = len(connected)//2
+    if game_idx not in all_games:
+        all_games[game_idx] = Game()
     if not len(connected) % 2:
-        player ='x'
+        all_games[game_idx].x_player = websocket
+        player =1
     else:
-       player = 'o'
-    await websocket.send(f'init,{player}')
-    connected.add((websocket,player))
-    all_games[game_idx]={player: websocket}
+        all_games[game_idx].o_player = websocket
+        all_games[game_idx].ready  = True
+        player =2
+
+    await websocket.send(f'init,{player},{game_idx}')
+    connected.add((websocket,player,game_idx))
+    print("Games connected sofar",all_games)
 
 
 
@@ -83,17 +86,6 @@ async def handler(websocket, path):
             task.cancel()
         await asyncio.sleep(1)
 
-        # if listener_task in done:
-        #     message = listener_task.result()
-        #     await consumer(message)
-        # else:
-        #     listener_task.cancel()
-        #
-        # if producer_task in done:
-        #     message = producer_task.result()
-        #     await websocket.send(message)
-        # else:
-        #     producer_task.cancel()
 
 
 async def main():

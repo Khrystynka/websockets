@@ -1,11 +1,14 @@
 class Game:
     def __init__(self):
         self.winner_idx = None
-        self.turn = "x"
+        self.x_player =None
+        self.o_player = None
+        self.turn = 1
         self.winner = None
         self.winner_direction = None
         self.tie = None
         self.board = [[None] * 3, [None] * 3, [None] * 3]
+        self.ready = False
         self.is_over = False
 
     def has_tie(self):
@@ -17,7 +20,7 @@ class Game:
 
     def reset(self):
         self.winner_idx = None
-        self.turn = "x"
+        self.turn = 'x'
         self.winner = None
         self.winner_direction = None
         self.tie = None
@@ -44,10 +47,10 @@ class Game:
     def make_move(self, row, col):
         self.board[row - 1][col - 1] = self.turn
         self.update_status()
-        if self.turn == 'x':
-            self.turn = "o"
+        if self.turn == 1:
+            self.turn = 2
         else:
-            self.turn = "x"
+            self.turn = 1
 
     def is_free(self, row, col):
         return self.board[row - 1][col - 1] == None

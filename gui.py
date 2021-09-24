@@ -57,18 +57,23 @@ class Board():
         pg.draw.line(self.screen, self.line_color, coords[0], coords[1], 7)
         pg.display.update()
 
-    def display_game_status(self, status, player):
+    def display_game_status(self, status):
         print ('Im tryingto display status')
         self.screen.fill((0, 0, 0), (0, 0, 500, 100))
 
         if status == "win":
-            message = f"Winner is: Player {player.upper()}"
-            self.screen.fill((255, 0, 0), (0, 0, 500, 100))
+                message = f"YOU WON!"
+                self.screen.fill((255, 0, 0), (0, 0, 500, 100))
+        if status == 'lost':
+                message = f"YOU LOST!"
+                self.screen.fill((120, 120, 120), (0, 0, 500, 100))
 
         elif status == 'tie':
             message = "Game over!"
+        elif status == 'move':
+                message = f"Make your move"
         else:
-            message = f"Next turn: Player {player.upper()}"
+                message = "Wait for opponent"
         font = pg.font.SysFont("comicsans", 40)
 
         img = font.render(message, True, (255, 255, 255))
@@ -120,7 +125,7 @@ class Board():
         if row == 3:
             y = self.height / 3 * 2 + margin_y
 
-        if turn == 'x':
+        if turn == 1:
             self.screen.blit(x_img, (x, y))
         else:
             self.screen.blit(o_img, (x, y))
