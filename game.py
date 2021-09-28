@@ -20,7 +20,7 @@ class Game:
 
     def reset(self):
         self.winner_idx = None
-        self.turn = 'x'
+        self.turn = 1
         self.winner = None
         self.winner_direction = None
         self.tie = None
