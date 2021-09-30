@@ -12,12 +12,9 @@ player = None
 game_id = None
 status = None
 q = Queue()
-board = None
+board = [[None] * 3, [None] * 3, [None] * 3]
 
-def reset_board():
-    global board
-    board = [[None] * 3, [None] * 3, [None] * 3]
-    # gui.game_initiating_window()
+
 def send_message_from_server_to_queue(message):
     # closure on queue
     global q
@@ -36,24 +33,23 @@ def process_click():
     global status
     pos = pg.mouse.get_pos()
     row, col = gui.detect_square(pos)
-    print ('clicked on', row, col, board[row-1][col-1])
-    if row is None or (row and board[row-1][col-1]):
+    if row is None or (row and board[row - 1][col - 1]):
         return
-    board[row-1][col-1] = 'marked'
+    board[row - 1][col - 1] = 'marked'
     n.send_task(f'{row},{col},{player},{game_id}')
 
 
 def update_status(message):
-    global player, game_id, status,q, board
+    global player, game_id, status, q, board
     response = pickle.loads(message)
-    print ('Client works on', response)
+    print('Client works on', response)
     game_status = None
     if response['action'] == 'init':
         print('Nothing on board, we initiating')
         player = int(response['player'])
         game_id = int(response['game_id'])
         board = response['board']
-        print("The board",board)
+        print("The board", board)
         print('init', 'player', player, 'game_id', game_id)
         if player != 1:
             status = 'opponent'
@@ -85,12 +81,6 @@ def update_status(message):
     gui.display_game_status(status)
 
     if game_status == "win" or game_status == 'tie':
-        print('remaining tasks',n.tasks)
-        # while not n.tasks.empty():
-        #     task = n.tasks.get()
-        #     task.cancel()
-        # print('remaining tasks after closing',n.tasks)
-
         time.sleep(5)
         gui.game_initiating_window()
         if player != 1:
@@ -98,10 +88,8 @@ def update_status(message):
         else:
             status = 'move'
 
-        # gui.game_initiating_window()
         gui.display_game_status(status)
-        reset_board()
-
+        # reset_board()
 
 
 while True:
@@ -118,5 +106,6 @@ while True:
             sys.exit()
         elif event.type == pg.MOUSEBUTTONDOWN:
             process_click()
+            pg.event.clear(eventtype=[pg.KEYDOWN, pg.KEYUP])
 
     pg.time.Clock().tick(60)

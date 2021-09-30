@@ -1,5 +1,6 @@
+
 class Game:
-    def __init__(self):
+    def __init__(self, id):
         self.winner_idx = None
         self.x_player =None
         self.o_player = None
@@ -10,6 +11,7 @@ class Game:
         self.board = [[None] * 3, [None] * 3, [None] * 3]
         self.ready = False
         self.is_over = False
+        self.id = id
 
     def has_tie(self):
         for i in range(len(self.board)):
@@ -54,3 +56,19 @@ class Game:
 
     def is_free(self, row, col):
         return self.board[row - 1][col - 1] == None
+
+    def __getstate__(self):
+        # Copy the object's state from self.__dict__ which contains
+        # all our instance attributes. Always use the dict.copy()
+        # method to avoid modifying the original state.
+        state = self.__dict__.copy()
+        print('From Class Game: my state: ',state)
+        # Remove the unpicklable entries.
+        # del state['file']
+        return state
+
+    def __setstate__(self, state):
+        # Restore instance attributes (i.e., filename and lineno).
+        self.__dict__.update(state)
+        # Restore the previously opened file's state. To do so, we need to
+        # reopen it and read from it until the line count is restored.

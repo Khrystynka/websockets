@@ -11,7 +11,9 @@ import pygame as pg
 
 class Network:
     def __init__(self,callback):
-        self.uri = "ws://localhost:5000"
+        # self.uri = "ws://localhost:5000"
+        self.uri= "ws://websockets-tic-tac.herokuapp.com/"
+
         self.tasks = None
         self.loop = None
         self.callback = callback

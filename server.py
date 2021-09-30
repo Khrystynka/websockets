@@ -1,27 +1,28 @@
 import asyncio
+import time
+
 import websockets
 from game import Game
 import pickle
 from collections import deque
-all_games = dict()
+
+active_games = dict()
 all_messages = None
 connected = dict()
-games_waiting = deque()
+ws_waiting = deque()
+next_game = -1
 
 
 async def producer_handler():
-    global all_messages, connected
+    global all_messages, connected, next_game
     message = await all_messages.get()
+    print("THIS MOVW WAS FROM CLIENT", message)
     row, col, player, game_id = [int(x) for x in message.split(",")]
-    if game_id not in all_games:
+    if game_id not in active_games:
         return
-    game = all_games[game_id]
-    if not game.ready:
-        not_ready_obj = {
-            "action": "not ready",
-        }
-        game_update_massage = pickle.dumps(not_ready_obj)
-    elif game.ready and player == game.turn and game.is_free(row, col):
+    game = active_games[game_id]
+
+    if player == game.turn and game.is_free(row, col):
         game.make_move(row, col)
         game.update_status()
         status = 'move'
@@ -29,7 +30,7 @@ async def producer_handler():
             status = 'win'
         elif game.tie:
             status = 'tie'
-        move_obj= {
+        move_obj = {
             "action": "move",
             'row': row,
             "col": col,
@@ -40,9 +41,6 @@ async def producer_handler():
             'board': game.board
         }
         game_update_massage = pickle.dumps(move_obj)
-        if game.is_over or not game.ready:
-            game.reset()
-
     else:
         invalid_obj = {
             "action": "invalid",
@@ -50,90 +48,83 @@ async def producer_handler():
         game_update_massage = pickle.dumps(invalid_obj)
     recipients = [game.x_player, game.o_player]
     [await w.send(game_update_massage) for w in recipients if w in connected]
+    if game.is_over:
+        next_game += 1
+        del active_games[game.id]
+        time.sleep(5)
+        await new_game(game.o_player, game.x_player, next_game)
 
 
 async def consumer_handler(ws):
-    global all_messages, connected, games_waiting
+    global all_messages, connected, ws_waiting, next_game
+    game_id = connected[ws]
+
     try:
         message = await ws.recv()
         await all_messages.put(message)
-        print('Server: All received  msgs', all_messages)
 
     except Exception as error:
-        print('Server message:Lost connection with client!')
-        game_id = connected[ws]
-        game = all_games[game_id]
-        if game.x_player == ws:
-            if game.o_player:
-                games_waiting.append(game_id)
-                game.ready =False
-                game.reset()
-                game.x_player = None
+        print('Server message:Lost connection with client!', ws, error)
+        not_ready_obj = {
+            "action": "not ready",
+        }
+        if game_id != None:
+            # print("PALYERS IN THE GAME", 'x:',active_games[game_id].x_player, 'o', active_games[game_id].o_player)
+            if active_games[game_id].x_player != ws:
+                other_player = active_games[game_id].x_player
             else:
-                games_waiting.remove(game_id)
-                del all_games[game_id]
-        else:
-            if game.x_player:
-                games_waiting.append(game_id)
-                game.ready =False
-                game.reset()
-                game.o_player = None
+                other_player = active_games[game_id].o_player
+            del active_games[game_id]
+            if len(ws_waiting) != 0:
+                opponent = ws_waiting.pop()
+                next_game += 1
+                await new_game(opponent, other_player, next_game)
             else:
-                games_waiting.remove(game_id)
-                del all_games[game_id]
-
+                ws_waiting.append(other_player)
+                await other_player.send(pickle.dumps(not_ready_obj))
+                connected[other_player] = None
         del connected[ws]
-        await all_messages.put(f"-1,-1,-1,{game_id}")
+
+
+async def new_game(x_pl, o_pl, game_idx):
+    global connected, active_games
+    game = Game(game_idx)
+    active_games[game.id] = game
+    game.x_player = x_pl
+    game.o_player = o_pl
+    x_message = {
+        "action": "init",
+        "player": 1,
+        "game_id": game.id,
+        "board": active_games[game_idx].board
+    }
+    o_message = {
+        "action": "init",
+        "player": 2,
+        "game_id": game.id,
+        "board": active_games[game.id].board
+    }
+    await game.x_player.send(pickle.dumps(x_message))
+    await game.o_player.send(pickle.dumps(o_message))
+    connected[x_pl] = game.id
+    connected[o_pl] = game.id
 
 
 async def handler(websocket, path):
-    global all_games, games_waiting
-
-    if len(games_waiting) !=0:
-        game_idx = games_waiting.popleft()
+    global active_games, ws_waiting, next_game
+    opponent = None
+    if len(ws_waiting) != 0:
+        opponent = ws_waiting.popleft()
+    if opponent:
+        next_game = next_game + 1
+        await new_game(opponent, websocket, next_game)
     else:
-        game_idx = len(connected) // 2
-    if game_idx not in all_games:
-        all_games[game_idx] = Game()
-    x_message = {
-            "action": "init",
-            "player": 1,
-            "game_id": game_idx,
-            "board": all_games[game_idx].board
+        not_ready_message = {
+            "action": "not ready"
         }
-    o_message = {
-            "action": "init",
-            "player": 2,
-            "game_id": game_idx,
-            "board": all_games[game_idx].board
-        }
-
-    not_ready_message = {
-        "action": "not ready"
-    }
-
-    if not all_games[game_idx].x_player:
-        all_games[game_idx].x_player = websocket
-        if all_games[game_idx].o_player:
-            all_games[game_idx].ready = True
-            if game_idx in games_waiting:
-                games_waiting.remove(game_idx)
-        else:
-            all_games[game_idx].ready = False
-            await all_games[game_idx].x_player.send(pickle.dumps(not_ready_message))
-
-            games_waiting.append(game_idx)
-    else:
-        all_games[game_idx].o_player = websocket
-        if game_idx in games_waiting:
-            games_waiting.remove(game_idx)
-        all_games[game_idx].ready = True
-    if all_games[game_idx].ready:
-        all_games[game_idx].reset()
-        await all_games[game_idx].x_player.send(pickle.dumps(x_message))
-        await all_games[game_idx].o_player.send(pickle.dumps(o_message))
-
-    connected[websocket] = game_idx
+        await websocket.send(pickle.dumps(not_ready_message))
+        ws_waiting.append(websocket)
+        connected[websocket] = None
 
     while websocket in connected:
         listener_task = asyncio.ensure_future(consumer_handler(websocket))
